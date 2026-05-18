@@ -1,0 +1,82 @@
+name: Build PS1 Demo
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Check out project
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build unzip jq
+
+      - name: Download PSn00bSDK
+        run: |
+          mkdir -p /tmp/psn00bsdk_download
+          mkdir -p /tmp/psn00bsdk_extract
+
+          ASSET_NAME=$(gh api repos/Lameguy64/PSn00bSDK/releases/latest --jq '.assets[].name' | grep -Ei 'psn00b.*linux|linux.*psn00b' | head -n 1)
+
+          if [ -z "$ASSET_NAME" ]; then
+            echo "Could not find Linux PSn00bSDK release asset."
+            gh api repos/Lameguy64/PSn00bSDK/releases/latest --jq '.assets[].name'
+            exit 1
+          fi
+
+          echo "Downloading $ASSET_NAME"
+          gh release download --repo Lameguy64/PSn00bSDK --pattern "$ASSET_NAME" --dir /tmp/psn00bsdk_download
+
+          FILE="/tmp/psn00bsdk_download/$ASSET_NAME"
+
+          if [[ "$FILE" == *.zip ]]; then
+            unzip -q "$FILE" -d /tmp/psn00bsdk_extract
+          else
+            echo "Unsupported PSn00bSDK package type: $FILE"
+            exit 1
+          fi
+
+          SDK_FILE=$(find /tmp/psn00bsdk_extract -type f -path "*/lib/libpsn00b/cmake/sdk.cmake" | head -n 1)
+
+          if [ -z "$SDK_FILE" ]; then
+            echo "Could not find sdk.cmake after extracting PSn00bSDK."
+            find /tmp/psn00bsdk_extract -maxdepth 4 -type f | head -n 50
+            exit 1
+          fi
+
+          SDK_ROOT="${SDK_FILE%/lib/libpsn00b/cmake/sdk.cmake}"
+
+          echo "$SDK_ROOT/bin" >> $GITHUB_PATH
+          echo "PSN00BSDK_LIBS=$SDK_ROOT/lib/libpsn00b" >> $GITHUB_ENV
+
+          echo "PSn00bSDK installed at: $SDK_ROOT"
+
+      - name: Configure project
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$PSN00BSDK_LIBS/cmake/sdk.cmake" \
+            -DPSN00BSDK_TARGET=mipsel-none-elf
+
+      - name: Build PS1 disc image
+        run: |
+          cmake --build build --target iso
+
+      - name: Upload emulator files
+        uses: actions/upload-artifact@v4
+        with:
+          name: UTILITY_TUNNEL_B1_PS1_DEMO
+          path: |
+            build/utility_tunnel_b1.bin
+            build/utility_tunnel_b1.cue
+            build/utility_tunnel_b1.exe
