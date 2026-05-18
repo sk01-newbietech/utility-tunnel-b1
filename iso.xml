@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<iso_project>
+    <track type="data">
+        <identifiers
+            system="PLAYSTATION"
+            volume="UTILITY_TUNNEL_B1"
+            volume_set="UTILITY_TUNNEL_B1"
+            publisher="S_K"
+            data_preparer="PSN00BSDK"
+            application="PLAYSTATION"
+            copyright="README.TXT;1"
+        />
+
+        <directory_tree>
+            <file name="SYSTEM.CNF" type="data" source="${PROJECT_SOURCE_DIR}/system.cnf" />
+            <file name="UTB1.EXE" type="data" source="utility_tunnel_b1.exe" />
+            <dummy sectors="1024" />
+        </directory_tree>
+    </track>
+</iso_project>
